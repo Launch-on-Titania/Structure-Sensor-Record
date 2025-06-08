@@ -19,4 +19,6 @@
 @property (assign, nonatomic) BOOL recordEnabled;
 @property (assign, nonatomic) NSInteger imageIndex;
 @property (assign, nonatomic) NSInteger depthIndex;
+@property (strong, nonatomic) NSTimer *updateTimer;
+//@property (weak, nonatomic) IBOutlet UILabel *recordLabel;
 @end

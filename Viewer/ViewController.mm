@@ -338,26 +338,77 @@ struct AppStatus
     self.recordEnabled = NO;
 }
 
-- (IBAction)finishButtonTapped:(id)sender{
-    self.recordEnabled = NO;
-    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
-    dateString = [formatter stringFromDate:[NSDate date]];
-    NSString* saveDirectory =
-        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    saveDirectoryByDate = [saveDirectory stringByAppendingPathComponent:dateString];
-    
-    NSError* error = nil;
-    if (![[NSFileManager defaultManager] createDirectoryAtPath: saveDirectoryByDate withIntermediateDirectories:YES attributes:nil error:&error]) {
-        NSLog(@"Error creating directory: %@", error);
-    } else {
-        NSLog(@"Directory created successfully.");
+//- (IBAction)finishButtonTapped:(id)sender{
+//    self.recordEnabled = NO;
+//    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+//    [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
+//    dateString = [formatter stringFromDate:[NSDate date]];
+//    NSString* saveDirectory =
+//        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+//    saveDirectoryByDate = [saveDirectory stringByAppendingPathComponent:dateString];
+//    
+//    NSError* error = nil;
+//    if (![[NSFileManager defaultManager] createDirectoryAtPath: saveDirectoryByDate withIntermediateDirectories:YES attributes:nil error:&error]) {
+//        NSLog(@"Error creating directory: %@", error);
+//    } else {
+//        NSLog(@"Directory created successfully.");
+//    }
+//    
+//    self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat: @": Idle"];
+//    
+//    self.imageIndex = 0;
+//    self.depthIndex = 0;
+//}
+
+- (IBAction)finishButtonTapped:(id)sender {
+    NSLog(@"finishButtonTapped 已触发");
+
+    if (self.updateTimer) {
+        [self.updateTimer invalidate];
+        self.updateTimer = nil;
     }
-    
-    self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat: @": Idle"];
+
+    self.updateTimer = [NSTimer scheduledTimerWithTimeInterval:0.05
+                                                        target:self
+                                                      selector:@selector(updateLabel)
+                                                      userInfo:nil
+                                                       repeats:YES];
     
     self.imageIndex = 0;
     self.depthIndex = 0;
+    
+    [self updateLabel];
+}
+
+- (void)updateLabel {
+    NSLog(@"updateLabel 已调用");
+
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"yyyy-MM-dd_HH-mm-ss:S"];
+
+    NSString *currentDateString = [formatter stringFromDate:[NSDate date]];
+
+    NSString *saveDirectory =
+        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+
+    NSString *saveDirectoryByDate = [saveDirectory stringByAppendingPathComponent:currentDateString];
+
+    NSError *error = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtPath:saveDirectoryByDate
+                                   withIntermediateDirectories:YES
+                                                    attributes:nil
+                                                         error:&error]) {
+        NSLog(@"创建目录出错: %@", error);
+    } else {
+        NSLog(@"已成功创建目录: %@", saveDirectoryByDate);
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat:@": Idle"];
+        self.recordLabel.hidden = NO; // 确保未被隐藏
+        self.recordLabel.textColor = [UIColor blackColor]; // 确保颜色正常
+        NSLog(@"Label 文本已更新为：%@", self.recordLabel.text);
+    });
 }
 
 
