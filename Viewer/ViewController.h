@@ -15,6 +15,7 @@
 @property (strong, nonatomic) UIButton* finishButton;
 
 @property (strong, nonatomic) UILabel *recordLabel;
+@property (nonatomic, strong) NSString *saveDirectoryByDate;
 
 @property (assign, nonatomic) BOOL recordEnabled;
 @property (assign, nonatomic) NSInteger imageIndex;

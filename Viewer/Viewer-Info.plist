@@ -26,6 +26,8 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera image used for visualization</string>
 	<key>UIFileSharingEnabled</key>

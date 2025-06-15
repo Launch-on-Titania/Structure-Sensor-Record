@@ -197,6 +197,10 @@ struct AppStatus
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"];
     dateString = [formatter stringFromDate:[NSDate date]];
+//    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+//    [formatter setDateFormat:@"MM_dd_HH:mm:ss.SS"];
+//    NSString *nowStr = [formatter stringFromDate:[NSDate date]];
+//    self.recordLabel.text = nowStr; // label展示即可
     
     self.recordButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.recordButton setTitle:@"Record" forState:UIControlStateNormal];
@@ -322,20 +326,61 @@ struct AppStatus
 }
 
 
-- (IBAction)recordButtonTapped:(id)sender{
-    // Display the message in the label
-    self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat: @": Recording"];
+- (IBAction)recordButtonTapped:(id)sender {
+    // 1. 创建唯一目录（带毫秒）
 
-    // Set the recordEnabled to true
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    [formatter setDateFormat:@"MM/dd-HH:mm:ss.SS"];
+    NSString *timestamp = [formatter stringFromDate:[NSDate date]];
+    
+    NSString *docDir = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) firstObject];
+    self.saveDirectoryByDate = [docDir stringByAppendingPathComponent:timestamp];
+    
+    NSLog(@"📁 新录制目录: %@", self.saveDirectoryByDate);
+
+    NSError *error = nil;
+    if (![[NSFileManager defaultManager] createDirectoryAtPath:self.saveDirectoryByDate
+                                  withIntermediateDirectories:YES
+                                                   attributes:nil
+                                                        error:&error]) {
+        NSLog(@"❌ 创建目录失败: %@", error);
+        return;
+    }
+
+    // 2. 重置 index
+    self.imageIndex = 0;
+    self.depthIndex = 0;
+
+    // 3. 启动状态和定时器等...
     self.recordEnabled = YES;
+    self.recordLabel.text = [NSString stringWithFormat:@"%@: Active", [self.saveDirectoryByDate lastPathComponent]];
+    self.recordLabel.hidden = NO;
+    self.recordLabel.textColor = [UIColor blackColor];
+
+    if (self.updateTimer) {
+        [self.updateTimer invalidate];
+        self.updateTimer = nil;
+    }
+    self.updateTimer = [NSTimer scheduledTimerWithTimeInterval:0.05
+                                                        target:self
+                                                      selector:@selector(updateLabel)
+                                                      userInfo:nil
+                                                       repeats:YES];
+    [self updateLabel];
 }
 
-- (IBAction)stopButtonTapped:(id)sender{
-    // Display the message in the label
-    self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat: @": Idle"];
-
-    // Set the recordEnabled to false
+//- (IBAction)stopButtonTapped:(id)sender {
+//    // 仅显示 Idle，不创建文件夹
+//    self.recordLabel.text = [[self.saveDirectoryByDate lastPathComponent] stringByAppendingFormat:@": Idle"];
+//    self.recordEnabled = NO;
+//}
+- (IBAction)stopButtonTapped:(id)sender {
     self.recordEnabled = NO;
+    if (self.updateTimer) {
+        [self.updateTimer invalidate];
+        self.updateTimer = nil;
+    }
+    self.recordLabel.text = [[self.saveDirectoryByDate lastPathComponent] stringByAppendingFormat:@": Idle"];
 }
 
 //- (IBAction)finishButtonTapped:(id)sender{
@@ -384,33 +429,18 @@ struct AppStatus
     NSLog(@"updateLabel 已调用");
 
     NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-    [formatter setDateFormat:@"yyyy-MM-dd_HH-mm-ss:S"];
+    [formatter setDateFormat:@"MM/dd-HH:mm:ss.SS"];
 
     NSString *currentDateString = [formatter stringFromDate:[NSDate date]];
 
-    NSString *saveDirectory =
-        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-
-    NSString *saveDirectoryByDate = [saveDirectory stringByAppendingPathComponent:currentDateString];
-
-    NSError *error = nil;
-    if (![[NSFileManager defaultManager] createDirectoryAtPath:saveDirectoryByDate
-                                   withIntermediateDirectories:YES
-                                                    attributes:nil
-                                                         error:&error]) {
-        NSLog(@"创建目录出错: %@", error);
-    } else {
-        NSLog(@"已成功创建目录: %@", saveDirectoryByDate);
-    }
-
+    // 只更新时间字符串，不创建任何目录
     dispatch_async(dispatch_get_main_queue(), ^{
-        self.recordLabel.text = [[saveDirectoryByDate lastPathComponent] stringByAppendingFormat:@": Idle"];
+        self.recordLabel.text = currentDateString;
         self.recordLabel.hidden = NO; // 确保未被隐藏
         self.recordLabel.textColor = [UIColor blackColor]; // 确保颜色正常
         NSLog(@"Label 文本已更新为：%@", self.recordLabel.text);
     });
 }
-
 
 - (void)dealloc
 {
@@ -781,45 +811,96 @@ struct AppStatus
     
 //    NSString* saveDirectory =
 //        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
+//    if (self.recordEnabled == YES ){
+//        NSError *error = nil;
+//        
+//        NSString *extrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"extrinsics.txt"];
+//        NSString *intrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"depth_intrinsics.txt"];
+//        if (![[NSFileManager defaultManager] fileExistsAtPath:extrinsicsFile]) {
+//            GLKMatrix4 extrinsic = depthFrame.iOSColorFromDepthExtrinsics;
+//            FILE *file = fopen([extrinsicsFile UTF8String], "w");
+//            fwrite(extrinsic.m, sizeof(float), 16, file);
+//            fclose(file);
+//            STIntrinsics intrinsics = depthFrame.intrinsics;
+//            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String],"w");
+//            NSString* intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",intrinsics.fx,intrinsics.fy,intrinsics.cx,intrinsics.cy,intrinsics.k1, intrinsics.k2 ,intrinsics.height,intrinsics.width];
+//            fprintf(intrinsics_file, "%s", [intrinsics_data UTF8String]);
+//            fclose(intrinsics_file);
+//        }
+//        
+//        
+//        
+//        if (![[NSFileManager defaultManager] createDirectoryAtPath:[saveDirectoryByDate stringByAppendingPathComponent:@"depth"] withIntermediateDirectories:YES attributes:nil error:&error]) {
+//            NSLog(@"Error creating directory: %@", error);
+//        } else {
+//            NSLog(@"Directory created successfully.");
+//        }
+//        if (self.depthIndex % downsample_rate == 0){
+//            NSInteger index = self.depthIndex / downsample_rate;
+//            NSString* filePath = [saveDirectoryByDate stringByAppendingPathComponent:[NSString stringWithFormat:@"depth/%04zu_depth.bin", index]];
+//            
+//            FILE *file = fopen([filePath UTF8String], "wb");
+//            if (file != NULL) {
+//                fwrite(depthFrame.depthInMillimeters, sizeof(float), depthFrame.width * depthFrame.height, file);
+//                fclose(file);
+//                NSLog(@"Array written to file successfully.");
+//            } else {
+//                NSLog(@"Failed to open file for writing.");
+//            }
+//        }
+//       
+//        
+//        self.depthIndex += 1;
+//    }
+    
     if (self.recordEnabled == YES ){
         NSError *error = nil;
-        
-        NSString *extrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"extrinsics.txt"];
-        NSString *intrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"depth_intrinsics.txt"];
+
+        // 使用 self.saveDirectoryByDate 作为根目录
+        NSString *extrinsicsFile = [self.saveDirectoryByDate stringByAppendingPathComponent:@"extrinsics.txt"];
+        NSString *intrinsicsFile = [self.saveDirectoryByDate stringByAppendingPathComponent:@"depth_intrinsics.txt"];
+
+        // 只保存一次外参和内参
         if (![[NSFileManager defaultManager] fileExistsAtPath:extrinsicsFile]) {
             GLKMatrix4 extrinsic = depthFrame.iOSColorFromDepthExtrinsics;
             FILE *file = fopen([extrinsicsFile UTF8String], "w");
             fwrite(extrinsic.m, sizeof(float), 16, file);
             fclose(file);
+
             STIntrinsics intrinsics = depthFrame.intrinsics;
-            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String],"w");
-            NSString* intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",intrinsics.fx,intrinsics.fy,intrinsics.cx,intrinsics.cy,intrinsics.k1, intrinsics.k2 ,intrinsics.height,intrinsics.width];
+            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String], "w");
+            NSString* intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",
+                intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy,
+                intrinsics.k1, intrinsics.k2, intrinsics.height, intrinsics.width];
             fprintf(intrinsics_file, "%s", [intrinsics_data UTF8String]);
             fclose(intrinsics_file);
         }
-        
-        
-        
-        if (![[NSFileManager defaultManager] createDirectoryAtPath:[saveDirectoryByDate stringByAppendingPathComponent:@"depth"] withIntermediateDirectories:YES attributes:nil error:&error]) {
-            NSLog(@"Error creating directory: %@", error);
-        } else {
-            NSLog(@"Directory created successfully.");
+
+        // 保证 depth 子目录存在
+        NSString *depthDir = [self.saveDirectoryByDate stringByAppendingPathComponent:@"depth"];
+        if (![[NSFileManager defaultManager] fileExistsAtPath:depthDir]) {
+            if (![[NSFileManager defaultManager] createDirectoryAtPath:depthDir
+                                          withIntermediateDirectories:YES attributes:nil error:&error]) {
+                NSLog(@"Error creating depth directory: %@", error);
+            }
         }
-        if (self.depthIndex % downsample_rate == 0){
+
+        // 每 downsample_rate 帧保存一次
+        if (self.depthIndex % downsample_rate == 0) {
             NSInteger index = self.depthIndex / downsample_rate;
-            NSString* filePath = [saveDirectoryByDate stringByAppendingPathComponent:[NSString stringWithFormat:@"depth/%04zu_depth.bin", index]];
-            
+            NSString *filePath = [depthDir stringByAppendingPathComponent:
+                                  [NSString stringWithFormat:@"%04zu_depth.bin", index]];
+
             FILE *file = fopen([filePath UTF8String], "wb");
             if (file != NULL) {
                 fwrite(depthFrame.depthInMillimeters, sizeof(float), depthFrame.width * depthFrame.height, file);
                 fclose(file);
-                NSLog(@"Array written to file successfully.");
+                NSLog(@"Depth array written to file: %@", filePath);
             } else {
-                NSLog(@"Failed to open file for writing.");
+                NSLog(@"Failed to open file for writing: %@", filePath);
             }
         }
-       
-        
+
         self.depthIndex += 1;
     }
     CGImageRelease(imageRef);
@@ -948,31 +1029,71 @@ struct AppStatus
 
 //    NSString* saveDirectory =
 //        [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
-    if (self.recordEnabled == YES ){
+    
+//    if (self.recordEnabled == YES ){
+//        NSError *error = nil;
+//        if (![[NSFileManager defaultManager] createDirectoryAtPath:[saveDirectoryByDate stringByAppendingPathComponent:@"rgb"] withIntermediateDirectories:YES attributes:nil error:&error]) {
+//            NSLog(@"Error creating directory: %@", error);
+//        } else {
+//            NSLog(@"Directory created successfully.");
+//        }
+//        if (self.imageIndex % downsample_rate==0){
+//            NSInteger index = self.imageIndex/downsample_rate;
+//            NSString* filePath = [saveDirectoryByDate stringByAppendingPathComponent:[NSString stringWithFormat:@"rgb/%04zu_color.png", index]];
+//            
+//            NSData *pngData = UIImagePNGRepresentation([[UIImage alloc] initWithCGImage:imageRef]);
+//            [pngData writeToFile:filePath options:NSDataWritingAtomic error:&error];
+//        }
+//        
+//        
+//        NSString *intrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"rgb_intrinsics.txt"];
+//        if (![[NSFileManager defaultManager] fileExistsAtPath:intrinsicsFile]) {
+//            STIntrinsics intrinsics = colorFrame.intrinsics;
+//            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String],"w");
+//            NSString* intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",intrinsics.fx,intrinsics.fy,intrinsics.cx,intrinsics.cy,intrinsics.k1, intrinsics.k2 ,intrinsics.height,intrinsics.width];
+//            fprintf(intrinsics_file, "%s", [intrinsics_data UTF8String]);
+//            fclose(intrinsics_file);
+//        }
+//        
+//        self.imageIndex += 1;
+//    }
+    
+    if (self.recordEnabled == YES) {
         NSError *error = nil;
-        if (![[NSFileManager defaultManager] createDirectoryAtPath:[saveDirectoryByDate stringByAppendingPathComponent:@"rgb"] withIntermediateDirectories:YES attributes:nil error:&error]) {
-            NSLog(@"Error creating directory: %@", error);
-        } else {
-            NSLog(@"Directory created successfully.");
+
+        // 1. 创建 rgb 子目录（只在不存在时创建一次）
+        NSString *rgbDir = [self.saveDirectoryByDate stringByAppendingPathComponent:@"rgb"];
+        if (![[NSFileManager defaultManager] fileExistsAtPath:rgbDir]) {
+            if (![[NSFileManager defaultManager] createDirectoryAtPath:rgbDir withIntermediateDirectories:YES attributes:nil error:&error]) {
+                NSLog(@"Error creating rgb directory: %@", error);
+            }
         }
-        if (self.imageIndex % downsample_rate==0){
-            NSInteger index = self.imageIndex/downsample_rate;
-            NSString* filePath = [saveDirectoryByDate stringByAppendingPathComponent:[NSString stringWithFormat:@"rgb/%04zu_color.png", index]];
-            
+
+        // 2. 每 downsample_rate 帧保存一次
+        if (self.imageIndex % downsample_rate == 0) {
+            NSInteger index = self.imageIndex / downsample_rate;
+            NSString *filePath = [rgbDir stringByAppendingPathComponent:[NSString stringWithFormat:@"%04zu_color.png", index]];
+
             NSData *pngData = UIImagePNGRepresentation([[UIImage alloc] initWithCGImage:imageRef]);
             [pngData writeToFile:filePath options:NSDataWritingAtomic error:&error];
+
+            NSLog(@"RGB image saved: %@", filePath);
         }
-        
-        
-        NSString *intrinsicsFile = [saveDirectoryByDate stringByAppendingPathComponent:@"rgb_intrinsics.txt"];
+
+        // 3. 保存 intrinsics（每个 sequence 只存一次）
+        NSString *intrinsicsFile = [self.saveDirectoryByDate stringByAppendingPathComponent:@"rgb_intrinsics.txt"];
         if (![[NSFileManager defaultManager] fileExistsAtPath:intrinsicsFile]) {
             STIntrinsics intrinsics = colorFrame.intrinsics;
-            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String],"w");
-            NSString* intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",intrinsics.fx,intrinsics.fy,intrinsics.cx,intrinsics.cy,intrinsics.k1, intrinsics.k2 ,intrinsics.height,intrinsics.width];
+            FILE *intrinsics_file = fopen([intrinsicsFile UTF8String], "w");
+            NSString *intrinsics_data = [NSString stringWithFormat:@"%f %f %f %f %f %f %d %d",
+                                         intrinsics.fx, intrinsics.fy, intrinsics.cx, intrinsics.cy,
+                                         intrinsics.k1, intrinsics.k2, intrinsics.height, intrinsics.width];
             fprintf(intrinsics_file, "%s", [intrinsics_data UTF8String]);
             fclose(intrinsics_file);
+
+            NSLog(@"RGB intrinsics saved: %@", intrinsicsFile);
         }
-        
+
         self.imageIndex += 1;
     }
     CGImageRelease(imageRef);
